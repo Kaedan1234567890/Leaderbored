@@ -11,6 +11,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,6 +31,13 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         String typed = builder.getRemainingLowerCase();
         for (LeaderboardType type : LeaderboardType.values()) {
             if (type.id().startsWith(typed)) builder.suggest(type.id());
+        }
+        return builder.buildFuture();
+    };
+
+    private static final SuggestionProvider<CommandSourceStack> SCALES = (ctx, builder) -> {
+        for (String value : new String[]{"0.50", "0.75", "1.00", "1.25", "1.50", "2.00"}) {
+            if (value.startsWith(builder.getRemaining())) builder.suggest(value);
         }
         return builder.buildFuture();
     };
@@ -103,39 +111,36 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                         .requires(Permissions::canAdmin)
                         .then(Commands.literal("set")
                                 .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
+                                        // No position = quick placement above your current position.
                                         .executes(ctx -> setHere(ctx.getSource(), type(ctx.getSource(), StringArgumentType.getString(ctx, "type"))))
-                                        .then(Commands.argument("x", DoubleArgumentType.doubleArg())
-                                                .then(Commands.argument("y", DoubleArgumentType.doubleArg())
-                                                        .then(Commands.argument("z", DoubleArgumentType.doubleArg())
-                                                                .executes(ctx -> setExact(
-                                                                        ctx.getSource(),
-                                                                        type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
-                                                                        DoubleArgumentType.getDouble(ctx, "x"),
-                                                                        DoubleArgumentType.getDouble(ctx, "y"),
-                                                                        DoubleArgumentType.getDouble(ctx, "z"),
-                                                                        null))
-                                                                .then(Commands.argument("scale", DoubleArgumentType.doubleArg(0.25, 4.0))
-                                                                        .executes(ctx -> setExact(
-                                                                                ctx.getSource(),
-                                                                                type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
-                                                                                DoubleArgumentType.getDouble(ctx, "x"),
-                                                                                DoubleArgumentType.getDouble(ctx, "y"),
-                                                                                DoubleArgumentType.getDouble(ctx, "z"),
-                                                                                DoubleArgumentType.getDouble(ctx, "scale")))))))))
+                                        // Vanilla-style coordinate input. Press TAB just like /fill or /tp
+                                        // to get ~ ~ ~ / coordinate suggestions from Minecraft.
+                                        .then(Commands.argument("pos", Vec3Argument.vec3())
+                                                .executes(ctx -> {
+                                                    Vec3 pos = Vec3Argument.getVec3(ctx, "pos");
+                                                    return setExact(ctx.getSource(),
+                                                            type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
+                                                            pos.x, pos.y, pos.z, null);
+                                                })
+                                                .then(Commands.argument("scale", DoubleArgumentType.doubleArg(0.25, 4.0)).suggests(SCALES)
+                                                        .executes(ctx -> {
+                                                            Vec3 pos = Vec3Argument.getVec3(ctx, "pos");
+                                                            return setExact(ctx.getSource(),
+                                                                    type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
+                                                                    pos.x, pos.y, pos.z, DoubleArgumentType.getDouble(ctx, "scale"));
+                                                        }))))))
                         .then(Commands.literal("move")
                                 .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
-                                        .then(Commands.argument("x", DoubleArgumentType.doubleArg())
-                                                .then(Commands.argument("y", DoubleArgumentType.doubleArg())
-                                                        .then(Commands.argument("z", DoubleArgumentType.doubleArg())
-                                                                .executes(ctx -> move(
-                                                                        ctx.getSource(),
-                                                                        type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
-                                                                        DoubleArgumentType.getDouble(ctx, "x"),
-                                                                        DoubleArgumentType.getDouble(ctx, "y"),
-                                                                        DoubleArgumentType.getDouble(ctx, "z"))))))))
+                                        .then(Commands.argument("pos", Vec3Argument.vec3())
+                                                .executes(ctx -> {
+                                                    Vec3 pos = Vec3Argument.getVec3(ctx, "pos");
+                                                    return move(ctx.getSource(),
+                                                            type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
+                                                            pos.x, pos.y, pos.z);
+                                                }))))
                         .then(Commands.literal("scale")
                                 .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
-                                        .then(Commands.argument("scale", DoubleArgumentType.doubleArg(0.25, 4.0))
+                                        .then(Commands.argument("scale", DoubleArgumentType.doubleArg(0.25, 4.0)).suggests(SCALES)
                                                 .executes(ctx -> scale(
                                                         ctx.getSource(),
                                                         type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),

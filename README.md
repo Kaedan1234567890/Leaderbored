@@ -94,3 +94,10 @@ config/chillzone-leaderboard-stats.json
 The Top 10 text is a normal shared text-display entity. The final player line is one text-display entity per online player. The server hides every other player's personal line from each client, so two players standing at the same board can see different bottom lines without needing a client mod.
 
 This is intentionally an alpha because Java/Geyser rendering/spacing should be tested in the creative world before installing it at live spawn.
+
+
+## 0.1.2-alpha
+- Fixes text displays rendering raw JSON instead of formatted leaderboard text.
+- Replaces separate x/y/z arguments with vanilla `vec3` coordinate input for `/leaderboard set` and `/leaderboard move`, giving the same TAB/relative-coordinate helper style used by vanilla commands.
+- Adds scale suggestions (0.50, 0.75, 1.00, 1.25, 1.50, 2.00).
+- Keeps quick `/leaderboard set <type>` placement.

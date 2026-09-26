@@ -203,10 +203,12 @@ final class DisplayManager {
         }
         tagList.append(']');
 
-        String json = textJson.replace("'", "\\'");
+        // In 26.2 the text field accepts a structured text component directly.
+        // Quoting the JSON turns it into a literal string, which is why older
+        // builds visibly printed {\"text\":...,\"extra\":[...]} in-world.
         String command = "summon minecraft:text_display ~ ~ ~ {Tags:" + tagList
                 + ",billboard:\"center\",alignment:\"center\",background:0,shadow:1b,see_through:0b"
-                + ",line_width:400,view_range:2.0f,text:'" + json + "'"
+                + ",line_width:400,view_range:2.0f,text:" + textJson
                 + ",transformation:{scale:[" + f(scale) + "f," + f(scale) + "f," + f(scale) + "f]}}";
         run(level, x, y, z, command);
     }
