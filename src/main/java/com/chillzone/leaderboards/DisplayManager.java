@@ -89,8 +89,9 @@ final class DisplayManager {
         for (ServerLevel level : server.getAllLevels()) {
             List<PersonalEntity> personal = new ArrayList<>();
             for (Entity entity : level.getAllEntities()) {
-                if (!entity.getCommandTags().contains("czlb_personal")) continue;
-                UUID owner = ownerFromTags(entity.getCommandTags());
+                Set<String> tags = commandTags(entity);
+                if (!tags.contains("czlb_personal")) continue;
+                UUID owner = ownerFromTags(tags);
                 if (owner != null) personal.add(new PersonalEntity(entity.getId(), owner));
             }
             if (personal.isEmpty()) continue;
@@ -237,6 +238,47 @@ final class DisplayManager {
 
     private static String compactUuid(UUID uuid) {
         return uuid.toString().replace("-", "");
+    }
+
+
+    /**
+     * Minecraft 26.2 changed/removed the mapped public accessor for entity command tags.
+     * Resolve the backing tag set reflectively so this remains compatible with the
+     * runtime mapping without depending on getTags()/getCommandTags().
+     */
+    private static Set<String> commandTags(Entity entity) {
+        Class<?> type = entity.getClass();
+        while (type != null) {
+            for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                if (!Set.class.isAssignableFrom(field.getType())) continue;
+                try {
+                    field.setAccessible(true);
+                    Object value = field.get(entity);
+                    if (!(value instanceof Set<?> set)) continue;
+
+                    boolean stringsOnly = true;
+                    Set<String> result = new HashSet<>();
+                    for (Object entry : set) {
+                        if (!(entry instanceof String str)) {
+                            stringsOnly = false;
+                            break;
+                        }
+                        result.add(str);
+                    }
+                    if (!stringsOnly) continue;
+
+                    if (result.contains(ROOT_TAG)
+                            || result.contains("czlb_personal")
+                            || result.stream().anyMatch(tag -> tag.startsWith(OWNER_PREFIX))) {
+                        return result;
+                    }
+                } catch (ReflectiveOperationException | RuntimeException ignored) {
+                    // Try the next Set field.
+                }
+            }
+            type = type.getSuperclass();
+        }
+        return Set.of();
     }
 
     private static UUID ownerFromTags(Set<String> tags) {
