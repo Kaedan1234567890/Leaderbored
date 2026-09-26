@@ -72,7 +72,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                 killer = player;
             }
             STATS.recordDeath(victim, killer);
-            MinecraftServer server = victim.server;
+            MinecraftServer server = victim.level().getServer();
             if (server != null) {
                 DISPLAYS.refreshType(server, LeaderboardType.KILL_STREAK);
                 if (killer != null) DISPLAYS.refreshType(server, LeaderboardType.KILLS);
@@ -187,7 +187,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         double scale = requestedScale != null ? requestedScale
                 : old != null ? old.scale : CONFIG.state().defaultScale;
         LeaderboardConfig.BoardPlacement placement = new LeaderboardConfig.BoardPlacement(
-                source.getLevel().dimension().location().toString(), x, y, z, scale);
+                source.getLevel().dimension().identifier().toString(), x, y, z, scale);
         if (old != null) placement.personalOffset = old.personalOffset;
         CONFIG.put(type, placement);
         DISPLAYS.refreshType(source.getServer(), type);
@@ -203,7 +203,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
             source.sendFailure(Component.literal("That leaderboard has not been placed yet."));
             return 0;
         }
-        placement.dimension = source.getLevel().dimension().location().toString();
+        placement.dimension = source.getLevel().dimension().identifier().toString();
         placement.x = x;
         placement.y = y;
         placement.z = z;

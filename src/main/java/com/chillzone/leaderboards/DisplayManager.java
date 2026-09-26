@@ -89,8 +89,8 @@ final class DisplayManager {
         for (ServerLevel level : server.getAllLevels()) {
             List<PersonalEntity> personal = new ArrayList<>();
             for (Entity entity : level.getAllEntities()) {
-                if (!entity.getTags().contains("czlb_personal")) continue;
-                UUID owner = ownerFromTags(entity.getTags());
+                if (!entity.getCommandTags().contains("czlb_personal")) continue;
+                UUID owner = ownerFromTags(entity.getCommandTags());
                 if (owner != null) personal.add(new PersonalEntity(entity.getId(), owner));
             }
             if (personal.isEmpty()) continue;
@@ -226,7 +226,7 @@ final class DisplayManager {
 
     private static ServerLevel findLevel(MinecraftServer server, String dimension) {
         for (ServerLevel level : server.getAllLevels()) {
-            if (level.dimension().location().toString().equals(dimension)) return level;
+            if (level.dimension().identifier().toString().equals(dimension)) return level;
         }
         return null;
     }
