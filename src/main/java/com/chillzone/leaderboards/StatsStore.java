@@ -27,6 +27,11 @@ final class StatsStore {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path path = FabricLoader.getInstance().getConfigDir().resolve("chillzone-leaderboard-stats.json");
     private State state = new State();
+    // Test-only counters are intentionally memory-only. Mannequin kills can
+    // exercise the UI without ever contaminating real server statistics.
+    private final Map<UUID, Integer> testKills = new LinkedHashMap<>();
+    private final Map<UUID, Integer> testCurrentStreak = new LinkedHashMap<>();
+    private final Map<UUID, Integer> testBestStreak = new LinkedHashMap<>();
 
     static final class State {
         Map<String, PlayerStats> players = new LinkedHashMap<>();
@@ -107,6 +112,27 @@ final class StatsStore {
         }
 
         if (changed) save();
+    }
+
+
+    void recordTestMannequinKill(ServerPlayer killer) {
+        UUID uuid = killer.getUUID();
+        testKills.merge(uuid, 1, Integer::sum);
+        int current = testCurrentStreak.merge(uuid, 1, Integer::sum);
+        testBestStreak.merge(uuid, current, Math::max);
+    }
+
+    void resetTestStreak(ServerPlayer player) {
+        testCurrentStreak.put(player.getUUID(), 0);
+    }
+
+    int testKills(UUID uuid) { return testKills.getOrDefault(uuid, 0); }
+    int testBestStreak(UUID uuid) { return testBestStreak.getOrDefault(uuid, 0); }
+
+    void resetTestStats() {
+        testKills.clear();
+        testCurrentStreak.clear();
+        testBestStreak.clear();
     }
 
     PlayerStats get(UUID uuid) {

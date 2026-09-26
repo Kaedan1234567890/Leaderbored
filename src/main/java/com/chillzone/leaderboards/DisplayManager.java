@@ -64,16 +64,18 @@ final class DisplayManager {
         cleanupType(server, type);
 
         String shared = sharedText(server, type);
-        summonText(level, placement.x, placement.y, placement.z, placement.scale,
-                List.of(ROOT_TAG, typeTag(type), "czlb_shared_" + type.id()), shared);
 
+        // One complete board per viewer. Keeping the Top 10 and the personalized
+        // line in the SAME text-display entity makes the vertical spacing
+        // deterministic on both Java and Geyser/Bedrock. It also removes the
+        // old world-coordinate gap between #10 and the viewer line.
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             String owner = compactUuid(player.getUUID());
             String personal = personalText(type, player);
-            double py = placement.y + (placement.personalOffset * placement.scale);
-            summonText(level, placement.x, py, placement.z, placement.scale,
+            String fullBoard = combineBoardAndPersonal(shared, personal);
+            summonText(level, placement.x, placement.y, placement.z, placement.scale,
                     List.of(ROOT_TAG, typeTag(type), "czlb_personal", OWNER_PREFIX + owner,
-                            "czlb_personal_" + type.id() + "_" + owner), personal);
+                            "czlb_personal_" + type.id() + "_" + owner), fullBoard);
         }
 
         hideForeignPersonalLines(server);
@@ -110,7 +112,7 @@ final class DisplayManager {
     }
 
     private String sharedText(MinecraftServer server, LeaderboardType type) {
-        if (config.state().testMode) return testSharedText(type);
+        if (config.state().testMode) return testSharedText(server, type);
 
         JsonArray parts = new JsonArray();
         addPart(parts, type.title() + "\n\n", type.color(), true);
@@ -159,8 +161,10 @@ final class DisplayManager {
         if (config.state().testMode) {
             return switch (type) {
                 case PVP_RANK -> personalRankComponent(type, 8, name);
-                case KILLS -> personalScoreComponent(type, 37, name, 42);
-                case KILL_STREAK -> personalScoreComponent(type, 12, name, 6);
+                case KILLS -> personalScoreComponent(type,
+                        testPlacement(player, false), name, stats.testKills(player.getUUID()));
+                case KILL_STREAK -> personalScoreComponent(type,
+                        testPlacement(player, true), name, stats.testBestStreak(player.getUUID()));
             };
         }
 
@@ -206,20 +210,80 @@ final class DisplayManager {
         return component(parts);
     }
 
-    private String testSharedText(LeaderboardType type) {
+    private String testSharedText(MinecraftServer server, LeaderboardType type) {
         JsonArray parts = new JsonArray();
         addPart(parts, type.title() + "\n\n", type.color(), true);
-        for (int i = 1; i <= 10; i++) {
-            addPart(parts, "#" + i + " | ", type.color(), false);
-            addPart(parts, "TestPlayer" + i, "white", false);
-            if (type == LeaderboardType.KILLS) {
-                addPart(parts, ": " + (110 - i * 7), type.color(), false);
-            } else if (type == LeaderboardType.KILL_STREAK) {
-                addPart(parts, ": " + (31 - i * 2), type.color(), false);
+
+        if (type == LeaderboardType.PVP_RANK) {
+            for (int i = 1; i <= 10; i++) {
+                addPart(parts, "#" + i + " | ", type.color(), false);
+                addPart(parts, "TestPlayer" + i, "white", false);
+                if (i < 10) addPart(parts, "\n", "white", false);
             }
-            if (i < 10) addPart(parts, "\n", "white", false);
+            return component(parts);
+        }
+
+        List<TestScore> scores = new ArrayList<>();
+        // Ten predictable fake entries. #10 starts at zero so the first
+        // mannequin kill is enough for a tester to visibly enter the Top 10.
+        for (int i = 1; i <= 10; i++) {
+            scores.add(new TestScore("TestPlayer" + i, 10 - i, false));
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            int value = type == LeaderboardType.KILLS
+                    ? stats.testKills(player.getUUID())
+                    : stats.testBestStreak(player.getUUID());
+            scores.add(new TestScore(player.getGameProfile().name(), value, true));
+        }
+        scores.sort(Comparator.comparingInt(TestScore::value).reversed()
+                .thenComparing(TestScore::name, String.CASE_INSENSITIVE_ORDER));
+
+        int shown = Math.min(10, scores.size());
+        for (int i = 0; i < shown; i++) {
+            TestScore entry = scores.get(i);
+            addPart(parts, "#" + (i + 1) + " | ", type.color(), false);
+            addPart(parts, entry.name(), "white", false);
+            addPart(parts, ": " + entry.value(), type.color(), false);
+            if (i + 1 < shown) addPart(parts, "\n", "white", false);
         }
         return component(parts);
+    }
+
+
+    private int testPlacement(ServerPlayer target, boolean streak) {
+        List<TestScore> scores = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) scores.add(new TestScore("TestPlayer" + i, 10 - i, false));
+        MinecraftServer server = target.level().getServer();
+        if (server != null) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                int value = streak ? stats.testBestStreak(player.getUUID()) : stats.testKills(player.getUUID());
+                scores.add(new TestScore(player.getGameProfile().name(), value, true));
+            }
+        }
+        scores.sort(Comparator.comparingInt(TestScore::value).reversed()
+                .thenComparing(TestScore::name, String.CASE_INSENSITIVE_ORDER));
+        String targetName = target.getGameProfile().name();
+        int targetValue = streak ? stats.testBestStreak(target.getUUID()) : stats.testKills(target.getUUID());
+        for (int i = 0; i < scores.size(); i++) {
+            TestScore score = scores.get(i);
+            if (score.realPlayer() && score.name().equals(targetName) && score.value() == targetValue) return i + 1;
+        }
+        return scores.size() + 1;
+    }
+
+    private static String combineBoardAndPersonal(String boardJson, String personalJson) {
+        JsonArray combined = new JsonArray();
+        JsonObject board = GSON.fromJson(boardJson, JsonObject.class);
+        JsonObject personal = GSON.fromJson(personalJson, JsonObject.class);
+        if (board != null && board.has("extra") && board.get("extra").isJsonArray()) {
+            for (var part : board.getAsJsonArray("extra")) combined.add(part.deepCopy());
+        }
+        // Exactly one blank line between #10 and the viewer-specific line.
+        addPart(combined, "\n\n", "white", false);
+        if (personal != null && personal.has("extra") && personal.get("extra").isJsonArray()) {
+            for (var part : personal.getAsJsonArray("extra")) combined.add(part.deepCopy());
+        }
+        return component(combined);
     }
 
     private void summonText(ServerLevel level, double x, double y, double z, double scale,
@@ -354,4 +418,5 @@ final class DisplayManager {
     }
 
     private record PersonalEntity(int entityId, UUID owner) {}
+    private record TestScore(String name, int value, boolean realPlayer) {}
 }

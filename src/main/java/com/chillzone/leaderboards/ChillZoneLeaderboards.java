@@ -16,6 +16,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Locale;
@@ -73,13 +74,32 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         });
 
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
+            Entity attacker = source.getEntity();
+
+            // Test-only mannequin kills: count exactly like a PvP kill for the
+            // test Kills + Kill Streak boards, but never touch saved live stats.
+            if (CONFIG.state().testMode && isMannequin(entity) && attacker instanceof ServerPlayer tester) {
+                STATS.recordTestMannequinKill(tester);
+                MinecraftServer server = tester.level().getServer();
+                if (server != null) {
+                    DISPLAYS.refreshType(server, LeaderboardType.KILLS);
+                    DISPLAYS.refreshType(server, LeaderboardType.KILL_STREAK);
+                }
+                return;
+            }
+
             if (!(entity instanceof ServerPlayer victim)) return;
             ServerPlayer killer = null;
-            Entity attacker = source.getEntity();
             if (attacker instanceof ServerPlayer player && !player.getUUID().equals(victim.getUUID())) {
                 killer = player;
             }
+
+            // Real PvP tracking stays active regardless of display test mode.
+            // This guarantees that when test mode is OFF, real player kills and
+            // streaks update immediately; enabling test mode cannot erase them.
             STATS.recordDeath(victim, killer);
+            if (CONFIG.state().testMode) STATS.resetTestStreak(victim);
+
             MinecraftServer server = victim.level().getServer();
             if (server != null) {
                 DISPLAYS.refreshType(server, LeaderboardType.KILL_STREAK);
@@ -152,14 +172,6 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                                             type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
                                             DoubleArgumentType.getDouble(ctx, "scale"))))));
 
-            root.then(Commands.literal("personaloffset")
-                    .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
-                            .then(Commands.argument("blocks", DoubleArgumentType.doubleArg(-10.0, 10.0))
-                                    .executes(ctx -> personalOffset(
-                                            ctx.getSource(),
-                                            type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
-                                            DoubleArgumentType.getDouble(ctx, "blocks"))))));
-
             root.then(Commands.literal("remove")
                     .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
                             .executes(ctx -> remove(ctx.getSource(),
@@ -178,7 +190,9 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                     .then(Commands.literal("on")
                             .executes(ctx -> testMode(ctx.getSource(), true)))
                     .then(Commands.literal("off")
-                            .executes(ctx -> testMode(ctx.getSource(), false))));
+                            .executes(ctx -> testMode(ctx.getSource(), false)))
+                    .then(Commands.literal("reset")
+                            .executes(ctx -> resetTest(ctx.getSource()))));
 
             root.then(Commands.literal("cleanup")
                     .executes(ctx -> cleanup(ctx.getSource())));
@@ -250,20 +264,6 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         return 1;
     }
 
-    private static int personalOffset(CommandSourceStack source, LeaderboardType type, double offset) {
-        if (type == null) return 0;
-        LeaderboardConfig.BoardPlacement placement = CONFIG.get(type);
-        if (placement == null) {
-            source.sendFailure(Component.literal("That leaderboard has not been placed yet."));
-            return 0;
-        }
-        placement.personalOffset = offset;
-        CONFIG.put(type, placement);
-        DISPLAYS.refreshType(source.getServer(), type);
-        source.sendSuccess(() -> Component.literal("Set " + type.id() + " personal-line offset to " + fmt(offset) + "."), false);
-        return 1;
-    }
-
     private static int remove(CommandSourceStack source, LeaderboardType type) {
         if (type == null) return 0;
         CONFIG.remove(type);
@@ -295,7 +295,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                     ? "- " + type.id() + ": not placed"
                     : "- " + type.id() + ": " + p.dimension + " @ "
                     + fmt(p.x) + ", " + fmt(p.y) + ", " + fmt(p.z)
-                    + " | scale " + fmt(p.scale) + " | personal offset " + fmt(p.personalOffset);
+                    + " | scale " + fmt(p.scale);
             source.sendSuccess(() -> Component.literal(text), false);
         }
         source.sendSuccess(() -> Component.literal("Test mode: " + (CONFIG.state().testMode ? "ON" : "OFF")), false);
@@ -313,6 +313,18 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         DISPLAYS.cleanupAll(source.getServer());
         source.sendSuccess(() -> Component.literal("Removed all Chill Zone leaderboard display entities. Saved placements were kept."), false);
         return 1;
+    }
+
+
+    private static int resetTest(CommandSourceStack source) {
+        STATS.resetTestStats();
+        if (CONFIG.state().testMode) DISPLAYS.refreshAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Reset test-only mannequin kill/streak counters."), false);
+        return 1;
+    }
+
+    private static boolean isMannequin(Entity entity) {
+        return "minecraft:mannequin".equals(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
     }
 
     private static String fmt(double value) {

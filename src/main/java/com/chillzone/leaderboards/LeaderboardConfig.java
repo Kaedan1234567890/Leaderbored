@@ -30,7 +30,7 @@ final class LeaderboardConfig {
         double y;
         double z;
         double scale = 1.0;
-        double personalOffset = -1.85;
+        double personalOffset = -0.35;
 
         BoardPlacement() {}
 
@@ -59,8 +59,10 @@ final class LeaderboardConfig {
             for (BoardPlacement placement : state.boards.values()) {
                 if (placement == null) continue;
                 if (Math.abs(placement.personalOffset - (-2.75)) < 0.000001
-                        || Math.abs(placement.personalOffset - (-1.55)) < 0.000001) {
-                    placement.personalOffset = -1.85;
+                        || Math.abs(placement.personalOffset - (-1.55)) < 0.000001
+                        || Math.abs(placement.personalOffset - (-1.85)) < 0.000001
+                        || Math.abs(placement.personalOffset - (-1.25)) < 0.000001) {
+                    placement.personalOffset = -0.35;
                 }
             }
             save();

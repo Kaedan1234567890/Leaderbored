@@ -45,7 +45,6 @@ Places it at exact coordinates. Scale may be 0.25–4.0.
 ```text
 /leaderboard move <type> <x> <y> <z>
 /leaderboard scale <type> <scale>
-/leaderboard personaloffset <type> <blocks>
 /leaderboard refresh [type]
 /leaderboard remove <type>
 /leaderboard list
@@ -117,3 +116,13 @@ This is intentionally an alpha because Java/Geyser rendering/spacing should be t
 - PvP personal line now shows `Unranked | PlayerName` when not ranked or when Combat has no rank for that player.
 - The viewer's name remains yellow; the PvP rank/status marker uses the PvP board gold/orange color.
 - Player joins already trigger an immediate full display refresh, so their personalized lines are created as soon as they connect.
+
+## 0.1.8-alpha — deterministic spacing, Java/Bedrock server-side path, mannequin kill test
+- Rebuilds each viewer's board as one complete text-display entity instead of a shared Top 10 plus a separately positioned personal line. The #10-to-personal gap is now exactly one blank text line, so it does not depend on world-coordinate offsets.
+- Keeps the mod server-side: Java clients need no client mod, and Bedrock players connect through the server's normal Geyser/Floodgate setup. No Floodgate/Geyser API dependency is required by this mod.
+- Real player-vs-player deaths still update saved kill and all-time best streak data immediately. Test mode does not replace or erase live tracking.
+- While `/leaderboard test on` is active, killing a vanilla `minecraft:mannequin` counts as one **test-only** player kill and one step of a **test-only** kill streak for the killer. These counters are memory-only and never contaminate live saved statistics.
+- Test kills/streaks refresh the Kills and Kill Streak displays immediately. The first mannequin kill is enough to push the tester into the test Top 10 so the update is visibly testable while alone.
+- `/leaderboard test reset` clears only the temporary mannequin test counters.
+
+- The old `/leaderboard personaloffset` command was removed because the personal line is now part of the same text block; there is no separate world-space offset to tune anymore.
