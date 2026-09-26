@@ -3,10 +3,12 @@
   "id": "chillzoneleaderboards",
   "version": "${version}",
   "name": "Chill Zone Leaderboards",
-  "description": "Server-side Top 10 PvP rank, player-kill, and highest-kill-streak hologram leaderboards for Chill Zone SMP.",
-  "authors": ["Chill Zone SMP"],
+  "description": "Top 10 PvP rank, player-kill, and highest-kill-streak hologram leaderboards for Chill Zone SMP. Works on dedicated servers and integrated single-player worlds.",
+  "authors": [
+    "Chill Zone SMP"
+  ],
   "license": "MIT",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {
     "main": [
       "com.chillzone.leaderboards.ChillZoneLeaderboards"

@@ -1,3 +1,10 @@
+
+## 0.1.1-alpha — integrated single-player + dedicated server loading fix
+
+This build changes the Fabric environment from dedicated-server-only (`"server"`) to universal (`"*"`). That is required for the mod initializer to load when Minecraft is running an integrated server inside a normal single-player/creative world. The `/leaderboard` command remains admin-only on dedicated servers, while local single-player worlds can use it for testing.
+
+First local test: `/leaderboard set kills`
+
 # Chill Zone Leaderboards 0.1.0-alpha
 
 Server-side Fabric 26.2 leaderboard/hologram mod for Chill Zone SMP.
