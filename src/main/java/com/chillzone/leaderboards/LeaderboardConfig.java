@@ -30,7 +30,7 @@ final class LeaderboardConfig {
         double y;
         double z;
         double scale = 1.0;
-        double personalOffset = -1.55;
+        double personalOffset = -1.85;
 
         BoardPlacement() {}
 
@@ -54,11 +54,13 @@ final class LeaderboardConfig {
             if (state.refreshSeconds < 5) state.refreshSeconds = 30;
             if (state.defaultScale <= 0) state.defaultScale = 1.0;
 
-            // Migrate the old default personal-line spacing from earlier alphas.
+            // Migrate old alpha defaults to the polished board spacing.
             // Exact custom offsets chosen by admins are otherwise preserved.
             for (BoardPlacement placement : state.boards.values()) {
-                if (placement != null && Math.abs(placement.personalOffset - (-2.75)) < 0.000001) {
-                    placement.personalOffset = -1.55;
+                if (placement == null) continue;
+                if (Math.abs(placement.personalOffset - (-2.75)) < 0.000001
+                        || Math.abs(placement.personalOffset - (-1.55)) < 0.000001) {
+                    placement.personalOffset = -1.85;
                 }
             }
             save();

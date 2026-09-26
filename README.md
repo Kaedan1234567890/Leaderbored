@@ -108,3 +108,12 @@ This is intentionally an alpha because Java/Geyser rendering/spacing should be t
 - Ranked viewers see only their rank number (for example `#8`).
 - Viewers outside the Top 10 see only `Unranked`.
 - Kills and Kill Streak personalized lines are unchanged.
+
+
+## 0.1.6-alpha — final creative-world spacing/PvP personal-line polish
+- Adds a deliberate blank line between each leaderboard title and the #1 entry to match the approved reference spacing.
+- Moves the viewer-specific line to the polished default position below #10 and migrates earlier default offsets automatically.
+- PvP personal line now shows `#<rank> | PlayerName` when ranked.
+- PvP personal line now shows `Unranked | PlayerName` when not ranked or when Combat has no rank for that player.
+- The viewer's name remains yellow; the PvP rank/status marker uses the PvP board gold/orange color.
+- Player joins already trigger an immediate full display refresh, so their personalized lines are created as soon as they connect.

@@ -113,7 +113,7 @@ final class DisplayManager {
         if (config.state().testMode) return testSharedText(type);
 
         JsonArray parts = new JsonArray();
-        addPart(parts, type.title() + "\n", type.color(), true);
+        addPart(parts, type.title() + "\n\n", type.color(), true);
 
         switch (type) {
             case PVP_RANK -> {
@@ -158,7 +158,7 @@ final class DisplayManager {
         String name = player.getGameProfile().name();
         if (config.state().testMode) {
             return switch (type) {
-                case PVP_RANK -> personalRankComponent(type, 8);
+                case PVP_RANK -> personalRankComponent(type, 8, name);
                 case KILLS -> personalScoreComponent(type, 37, name, 42);
                 case KILL_STREAK -> personalScoreComponent(type, 12, name, 6);
             };
@@ -168,8 +168,8 @@ final class DisplayManager {
             case PVP_RANK -> {
                 int rank = CombatRankSource.rankOf(player.getUUID());
                 yield rank > 0
-                        ? personalRankComponent(type, rank)
-                        : unrankedPersonalComponent();
+                        ? personalRankComponent(type, rank, name)
+                        : unrankedPersonalComponent(type, name);
             }
             case KILLS -> {
                 int place = stats.placement(player.getUUID(), false);
@@ -184,9 +184,10 @@ final class DisplayManager {
         };
     }
 
-    private String personalRankComponent(LeaderboardType type, int place) {
+    private String personalRankComponent(LeaderboardType type, int place, String name) {
         JsonArray parts = new JsonArray();
-        addPart(parts, "#" + place, type.color(), true);
+        addPart(parts, "#" + place + " | ", type.color(), true);
+        addPart(parts, name, "yellow", true);
         return component(parts);
     }
 
@@ -198,15 +199,16 @@ final class DisplayManager {
         return component(parts);
     }
 
-    private String unrankedPersonalComponent() {
+    private String unrankedPersonalComponent(LeaderboardType type, String name) {
         JsonArray parts = new JsonArray();
-        addPart(parts, "Unranked", "gray", true);
+        addPart(parts, "Unranked | ", type.color(), true);
+        addPart(parts, name, "yellow", true);
         return component(parts);
     }
 
     private String testSharedText(LeaderboardType type) {
         JsonArray parts = new JsonArray();
-        addPart(parts, type.title() + "\n", type.color(), true);
+        addPart(parts, type.title() + "\n\n", type.color(), true);
         for (int i = 1; i <= 10; i++) {
             addPart(parts, "#" + i + " | ", type.color(), false);
             addPart(parts, "TestPlayer" + i, "white", false);
