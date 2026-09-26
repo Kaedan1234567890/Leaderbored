@@ -125,19 +125,21 @@ final class DisplayManager {
                         addPart(parts, "No ranked players yet", "gray", false);
                     } else {
                         for (CombatRankSource.RankEntry entry : entries) {
-                            addPart(parts, "#" + entry.rank() + " | " + entry.name() + "\n", "white", false);
+                            // Category color for the rank marker; player name stays white.
+                            addPart(parts, "#" + entry.rank() + " | ", type.color(), false);
+                            addPart(parts, entry.name() + "\n", "white", false);
                         }
                     }
                 }
             }
-            case KILLS -> appendScores(parts, stats.topKills(), false);
-            case KILL_STREAK -> appendScores(parts, stats.topBestStreak(), true);
+            case KILLS -> appendScores(parts, stats.topKills(), type);
+            case KILL_STREAK -> appendScores(parts, stats.topBestStreak(), type);
         }
 
         return component(parts);
     }
 
-    private void appendScores(JsonArray parts, List<StatsStore.ScoreEntry> scores, boolean streak) {
+    private void appendScores(JsonArray parts, List<StatsStore.ScoreEntry> scores, LeaderboardType type) {
         int shown = Math.min(10, scores.size());
         if (shown == 0) {
             addPart(parts, "No data yet", "gray", false);
@@ -145,8 +147,10 @@ final class DisplayManager {
         }
         for (int i = 0; i < shown; i++) {
             StatsStore.ScoreEntry entry = scores.get(i);
-            addPart(parts, "#" + (i + 1) + " | " + entry.name() + ": " + entry.value()
-                    + (i + 1 < shown ? "\n" : ""), "white", false);
+            // Rank number and stat value use the board color; player name stays white.
+            addPart(parts, "#" + (i + 1) + " | ", type.color(), false);
+            addPart(parts, entry.name(), "white", false);
+            addPart(parts, ": " + entry.value() + (i + 1 < shown ? "\n" : ""), type.color(), false);
         }
     }
 
@@ -154,9 +158,9 @@ final class DisplayManager {
         String name = player.getGameProfile().name();
         if (config.state().testMode) {
             return switch (type) {
-                case PVP_RANK -> simpleComponent("#8 | " + name, "yellow", true);
-                case KILLS -> simpleComponent("#37 | " + name + ": 42", "yellow", true);
-                case KILL_STREAK -> simpleComponent("#12 | " + name + ": 6", "yellow", true);
+                case PVP_RANK -> personalRankComponent(type, 8);
+                case KILLS -> personalScoreComponent(type, 37, name, 42);
+                case KILL_STREAK -> personalScoreComponent(type, 12, name, 6);
             };
         }
 
@@ -164,32 +168,54 @@ final class DisplayManager {
             case PVP_RANK -> {
                 int rank = CombatRankSource.rankOf(player.getUUID());
                 yield rank > 0
-                        ? simpleComponent("#" + rank + " | " + name, "yellow", true)
-                        : simpleComponent("Unranked | " + name, "gray", true);
+                        ? personalRankComponent(type, rank)
+                        : unrankedPersonalComponent();
             }
             case KILLS -> {
                 int place = stats.placement(player.getUUID(), false);
                 int value = stats.value(player.getUUID(), false);
-                yield simpleComponent("#" + place + " | " + name + ": " + value, "yellow", true);
+                yield personalScoreComponent(type, place, name, value);
             }
             case KILL_STREAK -> {
                 int place = stats.placement(player.getUUID(), true);
                 int value = stats.value(player.getUUID(), true);
-                yield simpleComponent("#" + place + " | " + name + ": " + value, "yellow", true);
+                yield personalScoreComponent(type, place, name, value);
             }
         };
+    }
+
+    private String personalRankComponent(LeaderboardType type, int place) {
+        JsonArray parts = new JsonArray();
+        addPart(parts, "#" + place, type.color(), true);
+        return component(parts);
+    }
+
+    private String personalScoreComponent(LeaderboardType type, int place, String name, int value) {
+        JsonArray parts = new JsonArray();
+        addPart(parts, "#" + place + " | ", type.color(), true);
+        addPart(parts, name, "yellow", true);
+        addPart(parts, ": " + value, type.color(), true);
+        return component(parts);
+    }
+
+    private String unrankedPersonalComponent() {
+        JsonArray parts = new JsonArray();
+        addPart(parts, "Unranked", "gray", true);
+        return component(parts);
     }
 
     private String testSharedText(LeaderboardType type) {
         JsonArray parts = new JsonArray();
         addPart(parts, type.title() + "\n", type.color(), true);
         for (int i = 1; i <= 10; i++) {
-            String value = switch (type) {
-                case PVP_RANK -> "#" + i + " | TestPlayer" + i;
-                case KILLS -> "#" + i + " | TestPlayer" + i + ": " + (110 - i * 7);
-                case KILL_STREAK -> "#" + i + " | TestPlayer" + i + ": " + (31 - i * 2);
-            };
-            addPart(parts, value + (i < 10 ? "\n" : ""), "white", false);
+            addPart(parts, "#" + i + " | ", type.color(), false);
+            addPart(parts, "TestPlayer" + i, "white", false);
+            if (type == LeaderboardType.KILLS) {
+                addPart(parts, ": " + (110 - i * 7), type.color(), false);
+            } else if (type == LeaderboardType.KILL_STREAK) {
+                addPart(parts, ": " + (31 - i * 2), type.color(), false);
+            }
+            if (i < 10) addPart(parts, "\n", "white", false);
         }
         return component(parts);
     }

@@ -101,3 +101,10 @@ This is intentionally an alpha because Java/Geyser rendering/spacing should be t
 - Replaces separate x/y/z arguments with vanilla `vec3` coordinate input for `/leaderboard set` and `/leaderboard move`, giving the same TAB/relative-coordinate helper style used by vanilla commands.
 - Adds scale suggestions (0.50, 0.75, 1.00, 1.25, 1.50, 2.00).
 - Keeps quick `/leaderboard set <type>` placement.
+
+
+## 0.1.5-alpha
+- PvP Rank personalized line no longer shows the player name.
+- Ranked viewers see only their rank number (for example `#8`).
+- Viewers outside the Top 10 see only `Unranked`.
+- Kills and Kill Streak personalized lines are unchanged.

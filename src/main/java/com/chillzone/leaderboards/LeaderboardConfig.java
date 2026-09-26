@@ -30,7 +30,7 @@ final class LeaderboardConfig {
         double y;
         double z;
         double scale = 1.0;
-        double personalOffset = -2.75;
+        double personalOffset = -1.55;
 
         BoardPlacement() {}
 
@@ -53,6 +53,14 @@ final class LeaderboardConfig {
             if (state.boards == null) state.boards = new LinkedHashMap<>();
             if (state.refreshSeconds < 5) state.refreshSeconds = 30;
             if (state.defaultScale <= 0) state.defaultScale = 1.0;
+
+            // Migrate the old default personal-line spacing from earlier alphas.
+            // Exact custom offsets chosen by admins are otherwise preserved.
+            for (BoardPlacement placement : state.boards.values()) {
+                if (placement != null && Math.abs(placement.personalOffset - (-2.75)) < 0.000001) {
+                    placement.personalOffset = -1.55;
+                }
+            }
             save();
         } catch (Exception e) {
             System.err.println("[ChillZoneLeaderboards] Failed to load config: " + e.getMessage());
