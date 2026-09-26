@@ -1,6 +1,7 @@
 package com.chillzone.leaderboards;
 
 import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.fabricmc.api.ModInitializer;
@@ -32,6 +33,14 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         String typed = builder.getRemainingLowerCase();
         for (LeaderboardType type : LeaderboardType.values()) {
             if (type.id().startsWith(typed)) builder.suggest(type.id());
+        }
+        return builder.buildFuture();
+    };
+
+    private static final SuggestionProvider<CommandSourceStack> PLAYERS = (ctx, builder) -> {
+        String typed = builder.getRemainingLowerCase();
+        for (String name : STATS.knownPlayerNames()) {
+            if (name.toLowerCase(Locale.ROOT).startsWith(typed)) builder.suggest(name);
         }
         return builder.buildFuture();
     };
@@ -172,6 +181,12 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                                             type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
                                             DoubleArgumentType.getDouble(ctx, "scale"))))));
 
+            root.then(Commands.literal("center")
+                    .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
+                            .executes(ctx -> center(
+                                    ctx.getSource(),
+                                    type(ctx.getSource(), StringArgumentType.getString(ctx, "type"))))));
+
             root.then(Commands.literal("remove")
                     .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
                             .executes(ctx -> remove(ctx.getSource(),
@@ -182,6 +197,32 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                     .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
                             .executes(ctx -> refreshOne(ctx.getSource(),
                                     type(ctx.getSource(), StringArgumentType.getString(ctx, "type"))))));
+
+            root.then(Commands.literal("player")
+                    .then(Commands.literal("remove")
+                            .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
+                                    .then(Commands.argument("player", StringArgumentType.word()).suggests(PLAYERS)
+                                            .executes(ctx -> removePlayerFromBoard(ctx.getSource(),
+                                                    type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
+                                                    StringArgumentType.getString(ctx, "player"))))))
+                    .then(Commands.literal("restore")
+                            .then(Commands.argument("type", StringArgumentType.word()).suggests(BOARD_TYPES)
+                                    .then(Commands.argument("player", StringArgumentType.word()).suggests(PLAYERS)
+                                            .executes(ctx -> restorePlayerToBoard(ctx.getSource(),
+                                                    type(ctx.getSource(), StringArgumentType.getString(ctx, "type")),
+                                                    StringArgumentType.getString(ctx, "player"))))))
+                    .then(Commands.literal("set")
+                            .then(Commands.literal("killstreak")
+                                    .then(Commands.argument("player", StringArgumentType.word()).suggests(PLAYERS)
+                                            .then(Commands.argument("value", IntegerArgumentType.integer(0))
+                                                    .executes(ctx -> setKillStreak(ctx.getSource(),
+                                                            StringArgumentType.getString(ctx, "player"),
+                                                            IntegerArgumentType.getInteger(ctx, "value")))))))
+                    .then(Commands.literal("reset")
+                            .then(Commands.literal("killstreak")
+                                    .then(Commands.argument("player", StringArgumentType.word()).suggests(PLAYERS)
+                                            .executes(ctx -> setKillStreak(ctx.getSource(),
+                                                    StringArgumentType.getString(ctx, "player"), 0))))));
 
             root.then(Commands.literal("list")
                     .executes(ctx -> list(ctx.getSource())));
@@ -264,6 +305,27 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         return 1;
     }
 
+    private static int center(CommandSourceStack source, LeaderboardType type) {
+        if (type == null) return 0;
+        LeaderboardConfig.BoardPlacement placement = CONFIG.get(type);
+        if (placement == null) {
+            source.sendFailure(Component.literal("That leaderboard has not been placed yet."));
+            return 0;
+        }
+
+        // Snap only X/Z to the exact center of the block the board currently occupies.
+        // Y (height) and scale are deliberately preserved so centering cannot disturb
+        // an already-approved vertical layout.
+        placement.x = Math.floor(placement.x) + 0.5;
+        placement.z = Math.floor(placement.z) + 0.5;
+        CONFIG.put(type, placement);
+        DISPLAYS.refreshType(source.getServer(), type);
+        source.sendSuccess(() -> Component.literal("Centered " + type.id()
+                + " leaderboard on its block at " + fmt(placement.x) + ", "
+                + fmt(placement.y) + ", " + fmt(placement.z) + "."), false);
+        return 1;
+    }
+
     private static int remove(CommandSourceStack source, LeaderboardType type) {
         if (type == null) return 0;
         CONFIG.remove(type);
@@ -306,6 +368,52 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         CONFIG.setTestMode(enabled);
         DISPLAYS.refreshAll(source.getServer());
         source.sendSuccess(() -> Component.literal("Leaderboard test mode " + (enabled ? "enabled" : "disabled") + "."), false);
+        return 1;
+    }
+
+    private static int removePlayerFromBoard(CommandSourceStack source, LeaderboardType type, String playerName) {
+        if (type == null) return 0;
+        if (type == LeaderboardType.PVP_RANK) {
+            source.sendFailure(Component.literal("PvP ranks are controlled by the Combat rank system. Use its rank commands instead."));
+            return 0;
+        }
+        java.util.UUID uuid = STATS.findUuidByName(playerName);
+        if (uuid == null) {
+            source.sendFailure(Component.literal("Unknown player: " + playerName));
+            return 0;
+        }
+        STATS.hideFrom(type, uuid);
+        DISPLAYS.refreshType(source.getServer(), type);
+        source.sendSuccess(() -> Component.literal("Removed " + STATS.name(uuid) + " from the " + type.id() + " leaderboard. Their saved stat was kept."), false);
+        return 1;
+    }
+
+    private static int restorePlayerToBoard(CommandSourceStack source, LeaderboardType type, String playerName) {
+        if (type == null) return 0;
+        if (type == LeaderboardType.PVP_RANK) {
+            source.sendFailure(Component.literal("PvP ranks are controlled by the Combat rank system. Use its rank commands instead."));
+            return 0;
+        }
+        java.util.UUID uuid = STATS.findUuidByName(playerName);
+        if (uuid == null) {
+            source.sendFailure(Component.literal("Unknown player: " + playerName));
+            return 0;
+        }
+        STATS.restoreTo(type, uuid);
+        DISPLAYS.refreshType(source.getServer(), type);
+        source.sendSuccess(() -> Component.literal("Restored " + STATS.name(uuid) + " to the " + type.id() + " leaderboard."), false);
+        return 1;
+    }
+
+    private static int setKillStreak(CommandSourceStack source, String playerName, int value) {
+        java.util.UUID uuid = STATS.findUuidByName(playerName);
+        if (uuid == null) {
+            source.sendFailure(Component.literal("Unknown player: " + playerName));
+            return 0;
+        }
+        STATS.setBestStreak(uuid, value);
+        DISPLAYS.refreshType(source.getServer(), LeaderboardType.KILL_STREAK);
+        source.sendSuccess(() -> Component.literal("Set " + STATS.name(uuid) + "'s highest kill streak to " + value + "."), false);
         return 1;
     }
 

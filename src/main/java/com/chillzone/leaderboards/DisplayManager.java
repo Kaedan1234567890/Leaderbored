@@ -118,22 +118,7 @@ final class DisplayManager {
         addPart(parts, type.title() + "\n\n", type.color(), true);
 
         switch (type) {
-            case PVP_RANK -> {
-                if (!CombatRankSource.available()) {
-                    addPart(parts, "Combat mod not loaded", "gray", false);
-                } else {
-                    List<CombatRankSource.RankEntry> entries = CombatRankSource.top10();
-                    if (entries.isEmpty()) {
-                        addPart(parts, "No ranked players yet", "gray", false);
-                    } else {
-                        for (CombatRankSource.RankEntry entry : entries) {
-                            // Category color for the rank marker; player name stays white.
-                            addPart(parts, "#" + entry.rank() + " | ", type.color(), false);
-                            addPart(parts, entry.name() + "\n", "white", false);
-                        }
-                    }
-                }
-            }
+            case PVP_RANK -> appendRanks(parts, CombatRankSource.available() ? CombatRankSource.top10() : List.of(), type);
             case KILLS -> appendScores(parts, stats.topKills(), type);
             case KILL_STREAK -> appendScores(parts, stats.topBestStreak(), type);
         }
@@ -143,16 +128,30 @@ final class DisplayManager {
 
     private void appendScores(JsonArray parts, List<StatsStore.ScoreEntry> scores, LeaderboardType type) {
         int shown = Math.min(10, scores.size());
-        if (shown == 0) {
-            addPart(parts, "No data yet", "gray", false);
-            return;
-        }
-        for (int i = 0; i < shown; i++) {
-            StatsStore.ScoreEntry entry = scores.get(i);
-            // Rank number and stat value use the board color; player name stays white.
+        for (int i = 0; i < 10; i++) {
             addPart(parts, "#" + (i + 1) + " | ", type.color(), false);
-            addPart(parts, entry.name(), "white", false);
-            addPart(parts, ": " + entry.value() + (i + 1 < shown ? "\n" : ""), type.color(), false);
+            if (i < shown) {
+                StatsStore.ScoreEntry entry = scores.get(i);
+                addPart(parts, entry.name(), "white", false);
+                addPart(parts, ": " + entry.value(), type.color(), false);
+            } else {
+                addPart(parts, "----------", "gray", false);
+            }
+            if (i < 9) addPart(parts, "\n", "white", false);
+        }
+    }
+
+    private void appendRanks(JsonArray parts, List<CombatRankSource.RankEntry> entries, LeaderboardType type) {
+        CombatRankSource.RankEntry[] byRank = new CombatRankSource.RankEntry[11];
+        for (CombatRankSource.RankEntry entry : entries) {
+            if (entry.rank() >= 1 && entry.rank() <= 10) byRank[entry.rank()] = entry;
+        }
+        for (int rank = 1; rank <= 10; rank++) {
+            addPart(parts, "#" + rank + " | ", type.color(), false);
+            CombatRankSource.RankEntry entry = byRank[rank];
+            if (entry == null) addPart(parts, "----------", "gray", false);
+            else addPart(parts, entry.name(), "white", false);
+            if (rank < 10) addPart(parts, "\n", "white", false);
         }
     }
 
@@ -238,13 +237,18 @@ final class DisplayManager {
         scores.sort(Comparator.comparingInt(TestScore::value).reversed()
                 .thenComparing(TestScore::name, String.CASE_INSENSITIVE_ORDER));
 
+        scores.removeIf(score -> score.value() <= 0);
         int shown = Math.min(10, scores.size());
-        for (int i = 0; i < shown; i++) {
-            TestScore entry = scores.get(i);
+        for (int i = 0; i < 10; i++) {
             addPart(parts, "#" + (i + 1) + " | ", type.color(), false);
-            addPart(parts, entry.name(), "white", false);
-            addPart(parts, ": " + entry.value(), type.color(), false);
-            if (i + 1 < shown) addPart(parts, "\n", "white", false);
+            if (i < shown) {
+                TestScore entry = scores.get(i);
+                addPart(parts, entry.name(), "white", false);
+                addPart(parts, ": " + entry.value(), type.color(), false);
+            } else {
+                addPart(parts, "----------", "gray", false);
+            }
+            if (i < 9) addPart(parts, "\n", "white", false);
         }
         return component(parts);
     }

@@ -126,3 +126,33 @@ This is intentionally an alpha because Java/Geyser rendering/spacing should be t
 - `/leaderboard test reset` clears only the temporary mannequin test counters.
 
 - The old `/leaderboard personaloffset` command was removed because the personal line is now part of the same text block; there is no separate world-space offset to tune anymore.
+
+## 0.1.9-alpha leaderboard moderation
+
+The leaderboard now remembers every known player name for command autocomplete and allows admins to hide a player from the statistic boards without deleting their underlying Minecraft statistics.
+
+Commands:
+
+- `/leaderboard player remove kills <player>` — hide that player from Most Player Kills.
+- `/leaderboard player restore kills <player>` — allow them to appear there again.
+- `/leaderboard player remove killstreak <player>` — hide that player from Highest Kill Streak.
+- `/leaderboard player restore killstreak <player>` — allow them to appear there again.
+- `/leaderboard player set killstreak <player> <value>` — set their saved all-time best streak and restore them to the streak board.
+- `/leaderboard player reset killstreak <player>` — set their all-time best streak to 0.
+
+PvP rank membership is still controlled by Chill Zone Combat, so player removal/set operations for `pvprank` remain in the Combat `/pvprank` tools instead of creating a second competing rank authority.
+
+Live Kills and Kill Streak boards only display players with a value of at least 1. Any unused Top 10 row is rendered as `#N | ----------`. PvP Rank also always renders all ten rank slots, using dashes for any rank slot that has no assigned player.
+
+
+## 0.2.0-alpha — block centering command
+
+Adds `/leaderboard center <type>`. The command snaps the saved leaderboard X/Z coordinates to the exact horizontal center of the block it currently occupies (`.5, .5`) while preserving the current Y height, scale, dimension, data, and formatting.
+
+Examples:
+
+- `/leaderboard center kills`
+- `/leaderboard center killstreak`
+- `/leaderboard center pvprank`
+
+This is intended for spawn layout cleanup after pasting/moving boards so admins do not need to manually calculate half-block coordinates.

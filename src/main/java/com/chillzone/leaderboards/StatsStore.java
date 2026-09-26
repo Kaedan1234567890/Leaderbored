@@ -21,6 +21,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.UUID;
 
 final class StatsStore {
@@ -35,6 +37,8 @@ final class StatsStore {
 
     static final class State {
         Map<String, PlayerStats> players = new LinkedHashMap<>();
+        Set<String> hiddenKills = new LinkedHashSet<>();
+        Set<String> hiddenKillStreak = new LinkedHashSet<>();
     }
 
     static final class PlayerStats {
@@ -54,6 +58,8 @@ final class StatsStore {
                 if (loaded != null) state = loaded;
             }
             if (state.players == null) state.players = new LinkedHashMap<>();
+            if (state.hiddenKills == null) state.hiddenKills = new LinkedHashSet<>();
+            if (state.hiddenKillStreak == null) state.hiddenKillStreak = new LinkedHashSet<>();
         } catch (Exception e) {
             System.err.println("[ChillZoneLeaderboards] Failed to load stats: " + e.getMessage());
             state = new State();
@@ -142,6 +148,56 @@ final class StatsStore {
     List<ScoreEntry> topKills() { return sorted(false); }
     List<ScoreEntry> topBestStreak() { return sorted(true); }
 
+    List<String> knownPlayerNames() {
+        List<String> names = new ArrayList<>();
+        for (PlayerStats stats : state.players.values()) {
+            if (stats != null && stats.name != null && !stats.name.isBlank()) names.add(stats.name);
+        }
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
+    }
+
+    UUID findUuidByName(String name) {
+        if (name == null) return null;
+        for (Map.Entry<String, PlayerStats> entry : state.players.entrySet()) {
+            PlayerStats stats = entry.getValue();
+            if (stats == null || stats.name == null || !stats.name.equalsIgnoreCase(name)) continue;
+            try { return UUID.fromString(entry.getKey()); } catch (IllegalArgumentException ignored) {}
+        }
+        return null;
+    }
+
+    boolean hideFrom(LeaderboardType type, UUID uuid) {
+        if (type == LeaderboardType.PVP_RANK) return false;
+        boolean changed = hiddenSet(type).add(uuid.toString());
+        if (changed) save();
+        return changed;
+    }
+
+    boolean restoreTo(LeaderboardType type, UUID uuid) {
+        if (type == LeaderboardType.PVP_RANK) return false;
+        boolean changed = hiddenSet(type).remove(uuid.toString());
+        if (changed) save();
+        return changed;
+    }
+
+    boolean isHidden(LeaderboardType type, UUID uuid) {
+        if (type == LeaderboardType.PVP_RANK) return false;
+        return hiddenSet(type).contains(uuid.toString());
+    }
+
+    void setBestStreak(UUID uuid, int value) {
+        PlayerStats stats = get(uuid);
+        stats.bestStreak = Math.max(0, value);
+        stats.currentStreak = 0;
+        state.hiddenKillStreak.remove(uuid.toString());
+        save();
+    }
+
+    private Set<String> hiddenSet(LeaderboardType type) {
+        return type == LeaderboardType.KILLS ? state.hiddenKills : state.hiddenKillStreak;
+    }
+
     int placement(UUID uuid, boolean streak) {
         List<ScoreEntry> list = sorted(streak);
         for (int i = 0; i < list.size(); i++) {
@@ -178,6 +234,8 @@ final class StatsStore {
                 PlayerStats stats = entry.getValue();
                 String name = stats.name == null ? uuid.toString().substring(0, 8) : stats.name;
                 int value = streak ? stats.bestStreak : stats.kills;
+                LeaderboardType board = streak ? LeaderboardType.KILL_STREAK : LeaderboardType.KILLS;
+                if (value <= 0 || isHidden(board, uuid)) continue;
                 list.add(new ScoreEntry(uuid, name, value));
             } catch (IllegalArgumentException ignored) {}
         }
