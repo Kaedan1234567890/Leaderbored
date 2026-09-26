@@ -166,7 +166,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                                 .then(Commands.literal("off").executes(ctx -> testMode(ctx.getSource(), false))))
                         .then(Commands.literal("cleanup")
                                 .executes(ctx -> cleanup(ctx.getSource())))
-                ));
+                );
     }
 
     private static LeaderboardType type(CommandSourceStack source, String raw) {
