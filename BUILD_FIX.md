@@ -1,0 +1,1 @@
+Version 0.1.3: Minecraft 26.3 permission-check fix: source.hasPermission(4) -> Commands.hasPermission(Commands.LEVEL_OWNERS). This checks vanilla level-four permission, not LuckPerms Owner group directly. No other gameplay changes. Not compiled locally.

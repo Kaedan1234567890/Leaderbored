@@ -76,7 +76,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                 snapshot(player);
                 openCategories(player);
                 return 1;
-            }).then(Commands.literal("reset").requires(source -> source.hasPermission(4))
+            }).then(Commands.literal("reset").requires(Commands.hasPermission(Commands.LEVEL_OWNERS))
                 .then(Commands.literal("confirm").executes(ctx -> {
                     // Keep vanilla statistics intact. Reset snapshots to current baseline,
                     // then subtract those baselines from subsequent ranking values.
