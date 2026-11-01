@@ -2,7 +2,6 @@ package com.chillzone.leaderboards;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.mojang.authlib.GameProfile;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -141,7 +140,7 @@ public final class ChillZoneLeaderboards implements ModInitializer {
             ItemStack head = named(Items.PLAYER_HEAD,"#"+(i+1)+" "+row.name+" | "+value(row,category));
             try {
                 UUID uuid = UUID.fromString(entry.getKey());
-                head.set(DataComponents.PROFILE, new ResolvableProfile(new GameProfile(uuid,row.name)));
+                head.set(DataComponents.PROFILE, ResolvableProfile.createUnresolved(uuid));
             } catch (Exception ignored) {}
             chest.setItem(i-page*45,head);
         }

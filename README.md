@@ -17,3 +17,7 @@ This is a REAL Fabric source project, unlike the earlier design-only ZIP. Minecr
 - Highest kill streak is NOT tracked in this alpha; it displays zero. Team rankings and precise placement history are future integrations that need the Teams/source event hooks.
 - Player heads use vanilla player profiles. Historical player name and skin resolution may need improvement on a test server.
 - This is uncompiled development source, not a verified deployable mod. Don't replace a working leaderboard until GitHub build and in-game tests pass.
+
+
+## Alpha 0.1.1 player head compiler fix
+Replaced the invalid constructor `new ResolvableProfile(...)` with the Minecraft-mapped `ResolvableProfile.createUnresolved(uuid)` factory (dynamic UUID-based player skin). The build has not been validated locally.
