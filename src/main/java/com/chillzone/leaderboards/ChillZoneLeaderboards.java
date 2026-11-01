@@ -10,6 +10,8 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.ItemLore;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -44,7 +46,8 @@ public final class ChillZoneLeaderboards implements ModInitializer {
     private static Path file;
     private static State state = new State();
     private static int tick;
-    private static class State { Map<String, Snapshot> players = new HashMap<>(); }
+    private static final Map<String, Long> resetOffsets = new HashMap<>();
+    private static class State { Map<String, Snapshot> players = new HashMap<>(); Map<String,Long> baselines = new HashMap<>(); }
     private static class Snapshot {
         String name = "Unknown";
         long kills, deaths, mined, placedEstimate, hearts, playtime, mobs, jumps;
@@ -56,6 +59,8 @@ public final class ChillZoneLeaderboards implements ModInitializer {
             try { if (Files.isRegularFile(file)) state = GSON.fromJson(Files.readString(file), State.class); }
             catch (Exception e) { System.err.println("[ChillZoneLeaderboards] Failed reading: " + e); }
             if (state == null || state.players == null) state = new State();
+            if (state.baselines == null) state.baselines = new HashMap<>();
+            resetOffsets.clear(); resetOffsets.putAll(state.baselines);
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(s -> { for (ServerPlayer p : s.getPlayerList().getPlayers()) snapshot(p); save(); });
         ServerPlayConnectionEvents.JOIN.register((h, sender, s) -> snapshot(h.player));
@@ -71,11 +76,24 @@ public final class ChillZoneLeaderboards implements ModInitializer {
                 snapshot(player);
                 openCategories(player);
                 return 1;
-            })));
+            }).then(Commands.literal("reset").requires(source -> source.hasPermission(4))
+                .then(Commands.literal("confirm").executes(ctx -> {
+                    // Keep vanilla statistics intact. Reset snapshots to current baseline,
+                    // then subtract those baselines from subsequent ranking values.
+                    for (ServerPlayer p : ctx.getSource().getServer().getPlayerList().getPlayers()) snapshot(p);
+                    resetOffsets.clear();
+                    for (var entry : state.players.entrySet()) {
+                        Snapshot r = entry.getValue();
+                        for (int i = 0; i < LABELS.length; i++) resetOffsets.put(entry.getKey() + ":" + i, rawValue(r,i));
+                    }
+                    save();
+                    ctx.getSource().sendSuccess(() -> Component.literal("Leaderboard baselines reset. Vanilla stats and Lifesteal hearts were not deleted.").withStyle(ChatFormatting.GREEN),true);
+                    return 1;
+                })))));
     }
     private static void save() {
         if (file == null) return;
-        try { Files.createDirectories(file.getParent()); Files.writeString(file, GSON.toJson(state)); }
+        try { state.baselines = new HashMap<>(resetOffsets); Files.createDirectories(file.getParent()); Files.writeString(file, GSON.toJson(state)); }
         catch (Exception e) { System.err.println("[ChillZoneLeaderboards] Failed saving: " + e); }
     }
     private static void snapshot(ServerPlayer p) {
@@ -119,17 +137,35 @@ public final class ChillZoneLeaderboards implements ModInitializer {
             for (int i = 0; i < CATEGORY_SLOTS.length; i++) if (slot == CATEGORY_SLOTS[i]) { openRanking(p,i,0); return; }
         }));
     }
-    private static long value(Snapshot row, int category) {
+    private static long rawValue(Snapshot row, int category) {
         return switch(category) {
             case 0 -> row.kills; case 1 -> row.deaths; case 2 -> row.mined;
             case 3 -> row.placedEstimate; case 4 -> row.hearts; case 5 -> 0;
-            case 6 -> row.playtime / 20; case 7 -> row.mobs; default -> row.jumps;
+            case 6 -> row.playtime; case 7 -> row.mobs; default -> row.jumps;
         };
+    }
+    private static long value(String uuid, Snapshot row, int category) {
+        long raw = rawValue(row, category);
+        // Current hearts are a live total, not a cumulative statistic.
+        return category == 4 ? raw : Math.max(0,raw - resetOffsets.getOrDefault(uuid + ":" + category, 0L));
+    }
+    private static String compact(long n) {
+        if (n < 1000) return Long.toString(n);
+        double scaled = n >= 1000000000L ? n / 1e9 : n >= 1000000L ? n / 1e6 : n / 1e3;
+        String suffix = n >= 1000000000L ? "B" : n >= 1000000L ? "M" : "K";
+        return (scaled < 10 && scaled != Math.floor(scaled) ? String.format(Locale.ROOT,"%.1f",Math.floor(scaled*10)/10.0) : Long.toString((long)scaled)) + suffix;
+    }
+    private static String displayValue(long value,int category) {
+        if(category == 6) {
+            long sec = value / 20;
+            return sec >= 3600 ? (sec / 3600) + "h " + ((sec % 3600) / 60) + "m" : sec >= 60 ? (sec/60) + "m " + (sec%60) + "s" : sec + "s";
+        }
+        return compact(value);
     }
     private static void openRanking(ServerPlayer player, int category, int requestedPage) {
         snapshot(player);
         List<Map.Entry<String, Snapshot>> records = new ArrayList<>(state.players.entrySet());
-        records.sort(Comparator.<Map.Entry<String, Snapshot>>comparingLong(e -> value(e.getValue(), category))
+        records.sort(Comparator.<Map.Entry<String, Snapshot>>comparingLong(e -> value(e.getKey(),e.getValue(), category))
             .reversed().thenComparing(e -> e.getValue().name.toLowerCase(Locale.ROOT)));
         int pages = Math.max(1,(records.size()+44)/45);
         int page = Math.max(0, Math.min(requestedPage,pages-1));
@@ -137,7 +173,8 @@ public final class ChillZoneLeaderboards implements ModInitializer {
         for (int i = page*45; i < Math.min(records.size(),(page+1)*45); i++) {
             var entry = records.get(i);
             Snapshot row = entry.getValue();
-            ItemStack head = named(Items.PLAYER_HEAD,"#"+(i+1)+" "+row.name+" | "+value(row,category));
+            ItemStack head = named(Items.PLAYER_HEAD,"#"+(i+1)+" " + row.name);
+            head.set(DataComponents.LORE, new ItemLore(List.of(Component.literal(displayValue(value(entry.getKey(),row,category),category) + " " + LABELS[category]).withStyle(ChatFormatting.GRAY))));
             try {
                 UUID uuid = UUID.fromString(entry.getKey());
                 head.set(DataComponents.PROFILE, ResolvableProfile.createUnresolved(uuid));
