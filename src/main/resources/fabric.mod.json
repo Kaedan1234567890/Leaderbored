@@ -1,25 +1,10 @@
 {
-  "schemaVersion": 1,
-  "id": "chillzoneleaderboards",
-  "version": "${version}",
-  "name": "Chill Zone Leaderboards",
-  "description": "Top 10 PvP rank, player-kill, and highest-kill-streak hologram leaderboards for Chill Zone SMP. Works on dedicated servers and integrated single-player worlds.",
-  "authors": [
-    "Chill Zone SMP"
-  ],
-  "license": "MIT",
-  "environment": "*",
-  "entrypoints": {
-    "main": [
-      "com.chillzone.leaderboards.ChillZoneLeaderboards"
-    ]
-  },
-  "depends": {
-    "fabricloader": ">=0.19.0",
-    "minecraft": "26.2",
-    "fabric-api": "*"
-  },
-  "suggests": {
-    "combat": "*"
-  }
+ "schemaVersion": 1,
+ "id": "chillzone_leaderboards",
+ "version": "${version}",
+ "name": "Chill Zone Leaderboards",
+ "description": "Server-side paginated stat leaderboards for Chill Zone SMP",
+ "environment": "server",
+ "entrypoints": {"main": ["com.chillzone.leaderboards.ChillZoneLeaderboards"]},
+ "depends": {"fabricloader": ">=0.19.5", "minecraft": "26.3", "fabric-api": "*", "java": ">=25"}
 }

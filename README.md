@@ -1,158 +1,19 @@
+# Chill Zone Leaderboards — GitHub-buildable Fabric source, 0.1 alpha
 
-## 0.1.1-alpha — integrated single-player + dedicated server loading fix
+This is a REAL Fabric source project, unlike the earlier design-only ZIP. Minecraft 26.3 / Java 25. Its `/leaderboards` command opens a 27-slot category GUI and a 54-slot paginated player-head ranking GUI. Menus prevent taking the displayed items.
 
-This build changes the Fabric environment from dedicated-server-only (`"server"`) to universal (`"*"`). That is required for the mod initializer to load when Minecraft is running an integrated server inside a normal single-player/creative world. The `/leaderboard` command remains admin-only on dedicated servers, while local single-player worlds can use it for testing.
+## GitHub build
+1. Create a new GitHub repository, e.g. `chillzone-leaderboards`.
+2. Upload the **contents of this ZIP**, not the ZIP itself, into the root of the repository. Include the hidden `.github/workflows/build.yml` folder.
+3. Commit the files, then choose **Actions > Build Chill Zone Leaderboards > Run workflow** (the workflow also starts on push).
+4. If the build succeeds, download the `chillzone-leaderboards-jar` artifact and extract the compiled `.jar` from it. Install alongside Fabric API on a *test* server only.
+5. If the build fails, copy the full GitHub Actions error log for the next fix. Compilation has NOT been verified locally.
 
-First local test: `/leaderboard set kills`
-
-# Chill Zone Leaderboards 0.1.0-alpha
-
-Server-side Fabric 26.2 leaderboard/hologram mod for Chill Zone SMP.
-
-## First version
-
-Three leaderboard types:
-
-- `pvprank` — current Chill Zone Combat Top 10 ranks.
-- `kills` — most PvP player kills.
-- `killstreak` — highest all-time PvP kill streak.
-
-Every board has:
-
-- A shared Top 10.
-- A viewer-specific line underneath showing **only that viewer's** placement/value.
-- Automatic refresh after relevant PvP deaths/kills.
-- A 30-second safety refresh by default.
-- Persistent board locations, scale, player kills, current streak and best streak.
-
-The PvP-rank integration is optional. If the Combat mod is not present, the PvP board says that Combat is not loaded. No client mod is required.
-
-## Commands
-
-All setup commands are OP-only.
-
-```text
-/leaderboard set <pvprank|kills|killstreak>
-```
-Places a board at your current position, 2.5 blocks above your feet.
-
-```text
-/leaderboard set <type> <x> <y> <z>
-/leaderboard set <type> <x> <y> <z> <scale>
-```
-Places it at exact coordinates. Scale may be 0.25–4.0.
-
-```text
-/leaderboard move <type> <x> <y> <z>
-/leaderboard scale <type> <scale>
-/leaderboard refresh [type]
-/leaderboard remove <type>
-/leaderboard list
-/leaderboard cleanup
-```
-
-### Creative-world layout testing
-
-```text
-/leaderboard test on
-```
-Shows 10 dummy players on all boards so you can test spacing/size while alone.
-
-```text
-/leaderboard test off
-```
-Returns to real data.
-
-## Refresh behavior
-
-- Player kill: Kills + Kill Streak boards refresh immediately.
-- Any player death: Kill Streak refreshes immediately because the victim's current streak resets.
-- PvP ranks: refreshed by the 30-second safety refresh or `/leaderboard refresh pvprank`.
-- Player joins: all displays refresh so the new viewer receives their personalized lines.
-
-The leaderboard **data does not reset every 30 seconds**. Only the floating display is refreshed.
-
-## Existing kill history
-
-On startup the mod imports the existing vanilla `minecraft:player_kills` values from the world's `stats` folder. This means the live server's Most Player Kills board does not have to begin from zero when the mod is first installed.
-
-Highest Kill Streak begins being tracked by this mod because vanilla Minecraft does not store an all-time PvP streak statistic.
-
-## Files
-
-```text
-config/chillzone-leaderboards.json
-config/chillzone-leaderboard-stats.json
-```
-
-`chillzone-leaderboards.json` contains display locations/settings.
-`chillzone-leaderboard-stats.json` contains persistent kill/streak data and remembered names.
-
-## Personalized bottom line
-
-The Top 10 text is a normal shared text-display entity. The final player line is one text-display entity per online player. The server hides every other player's personal line from each client, so two players standing at the same board can see different bottom lines without needing a client mod.
-
-This is intentionally an alpha because Java/Geyser rendering/spacing should be tested in the creative world before installing it at live spawn.
-
-
-## 0.1.2-alpha
-- Fixes text displays rendering raw JSON instead of formatted leaderboard text.
-- Replaces separate x/y/z arguments with vanilla `vec3` coordinate input for `/leaderboard set` and `/leaderboard move`, giving the same TAB/relative-coordinate helper style used by vanilla commands.
-- Adds scale suggestions (0.50, 0.75, 1.00, 1.25, 1.50, 2.00).
-- Keeps quick `/leaderboard set <type>` placement.
-
-
-## 0.1.5-alpha
-- PvP Rank personalized line no longer shows the player name.
-- Ranked viewers see only their rank number (for example `#8`).
-- Viewers outside the Top 10 see only `Unranked`.
-- Kills and Kill Streak personalized lines are unchanged.
-
-
-## 0.1.6-alpha — final creative-world spacing/PvP personal-line polish
-- Adds a deliberate blank line between each leaderboard title and the #1 entry to match the approved reference spacing.
-- Moves the viewer-specific line to the polished default position below #10 and migrates earlier default offsets automatically.
-- PvP personal line now shows `#<rank> | PlayerName` when ranked.
-- PvP personal line now shows `Unranked | PlayerName` when not ranked or when Combat has no rank for that player.
-- The viewer's name remains yellow; the PvP rank/status marker uses the PvP board gold/orange color.
-- Player joins already trigger an immediate full display refresh, so their personalized lines are created as soon as they connect.
-
-## 0.1.8-alpha — deterministic spacing, Java/Bedrock server-side path, mannequin kill test
-- Rebuilds each viewer's board as one complete text-display entity instead of a shared Top 10 plus a separately positioned personal line. The #10-to-personal gap is now exactly one blank text line, so it does not depend on world-coordinate offsets.
-- Keeps the mod server-side: Java clients need no client mod, and Bedrock players connect through the server's normal Geyser/Floodgate setup. No Floodgate/Geyser API dependency is required by this mod.
-- Real player-vs-player deaths still update saved kill and all-time best streak data immediately. Test mode does not replace or erase live tracking.
-- While `/leaderboard test on` is active, killing a vanilla `minecraft:mannequin` counts as one **test-only** player kill and one step of a **test-only** kill streak for the killer. These counters are memory-only and never contaminate live saved statistics.
-- Test kills/streaks refresh the Kills and Kill Streak displays immediately. The first mannequin kill is enough to push the tester into the test Top 10 so the update is visibly testable while alone.
-- `/leaderboard test reset` clears only the temporary mannequin test counters.
-
-- The old `/leaderboard personaloffset` command was removed because the personal line is now part of the same text block; there is no separate world-space offset to tune anymore.
-
-## 0.1.9-alpha leaderboard moderation
-
-The leaderboard now remembers every known player name for command autocomplete and allows admins to hide a player from the statistic boards without deleting their underlying Minecraft statistics.
-
-Commands:
-
-- `/leaderboard player remove kills <player>` — hide that player from Most Player Kills.
-- `/leaderboard player restore kills <player>` — allow them to appear there again.
-- `/leaderboard player remove killstreak <player>` — hide that player from Highest Kill Streak.
-- `/leaderboard player restore killstreak <player>` — allow them to appear there again.
-- `/leaderboard player set killstreak <player> <value>` — set their saved all-time best streak and restore them to the streak board.
-- `/leaderboard player reset killstreak <player>` — set their all-time best streak to 0.
-
-PvP rank membership is still controlled by Chill Zone Combat, so player removal/set operations for `pvprank` remain in the Combat `/pvprank` tools instead of creating a second competing rank authority.
-
-Live Kills and Kill Streak boards only display players with a value of at least 1. Any unused Top 10 row is rendered as `#N | ----------`. PvP Rank also always renders all ten rank slots, using dashes for any rank slot that has no assigned player.
-
-
-## 0.2.0-alpha — block centering command
-
-Adds `/leaderboard center <type>`. The command snaps the saved leaderboard X/Z coordinates to the exact horizontal center of the block it currently occupies (`.5, .5`) while preserving the current Y height, scale, dimension, data, and formatting.
-
-Examples:
-
-- `/leaderboard center kills`
-- `/leaderboard center killstreak`
-- `/leaderboard center pvprank`
-
-This is intended for spawn layout cleanup after pasting/moving boards so admins do not need to manually calculate half-block coordinates.
+## Data and limitations
+- Main categories: PvP kills, deaths, mined blocks, estimated placed blocks, Lifesteal hearts, kill streak placeholder, playtime in seconds, mobs killed, jumps.
+- Vanilla statistics are read when players are online and snapshotted in `world/data/chillzone-leaderboards.json` at intervals and disconnect. Old offline players are **not** imported until they log in. Values preserve progress seen by this mod.
+- Hearts: optional best-effort reading from the Lifesteal JSON save; can lag behind live changes.
+- Block placements are approximated from block-item use statistics, not guaranteed actual block placements; this is deliberately labeled.
+- Highest kill streak is NOT tracked in this alpha; it displays zero. Team rankings and precise placement history are future integrations that need the Teams/source event hooks.
+- Player heads use vanilla player profiles. Historical player name and skin resolution may need improvement on a test server.
+- This is uncompiled development source, not a verified deployable mod. Don't replace a working leaderboard until GitHub build and in-game tests pass.
